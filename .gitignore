@@ -1,2 +1,5 @@
 *.kra
 *~
+
+# Local diagnostics, benchmarks, and review notes.
+/performance-review/

@@ -13,6 +13,7 @@ Item {
   property bool captureInProgress: false
   property string pendingWeapon: ""
   property string capturePath: ""
+  readonly property string capturePrefix: Quickshell.env("XDG_RUNTIME_DIR") + "/blow-off-some-steam-"
   property int captureSerial: 0
   property url desktopSnapshot: ""
   property string captureError: ""
@@ -65,6 +66,28 @@ Item {
   property var pendingEffects: []
   property bool targetVisible: false
   property bool targetsEnabled: false
+  property bool bugHuntEnabled: false
+  readonly property bool bossCinematic: bugHuntEnabled && !!bugLayerLoader.item &&
+    (bugLayerLoader.item.bossEntering || bugLayerLoader.item.bossDying ||
+     (bugLayerLoader.item.bossActive && bugLayerLoader.item.enrageTime > 0) ||
+     (bugLayerLoader.item.bossTriggered && !bugLayerLoader.item.bossActive && !bugLayerLoader.item.bossDefeated))
+  onBossCinematicChanged: {
+    if (bossCinematic) {
+      automaticHoldTimer.stop(); fireTimer.stop(); automaticHoldEngaged = false
+      pistolSound.stop(); akSingleSound.stop(); mp5SingleSound.stop()
+      automaticSound.stop(); mp5AutomaticSound.stop(); revolverSound.stop()
+      bazookaLaunchSound.stop(); rocketExplosionSound.stop(); weaponSpinSound.stop()
+      trickAnimation.stop(); closeWeaponWheel(false)
+      // The 20th kill can occur inside a physics step. Clear the old volleys
+      // after that step finishes so they cannot instantly hit the revealed boss.
+      Qt.callLater(function() {
+        if (root.bossCinematic && bugLayerLoader.item && bugLayerLoader.item.bossEntering) {
+          root.particles = []; root.pendingEffects = []; root.particleBuffer = []
+          canvas.clear(); root.recoil = 0; root.flash = 0
+        }
+      })
+    } else if (armed) wakeSimulation()
+  }
   property real targetX: 0
   property real targetY: 0
   property real targetRadius: 34
@@ -159,6 +182,8 @@ Item {
     return effects
   }
   function playRocketExplosion(p) {
+    if (bugHuntEnabled && bugLayerLoader.item)
+      bugLayerLoader.item.hitBlast(p.x, p.y, 180 * (p.boomScale || 1))
     rocketExplosionSound.stop()
     rocketExplosionSound.volume = (p.boomScale || 1) > 1 ? 1.0 : 0.76
     rocketExplosionSound.play()
@@ -181,6 +206,7 @@ Item {
   }
   function setTargetsEnabled(enabled) {
     targetsEnabled = enabled
+    if (enabled) bugHuntEnabled = false
     if (enabled) destructionEnabled = false
     targetRespawnTimer.stop()
     targetVisible = false
@@ -189,7 +215,20 @@ Item {
   }
   function setDestructionEnabled(enabled) {
     destructionEnabled = enabled
+    if (enabled) bugHuntEnabled = false
     if (enabled) setTargetsEnabled(false)
+  }
+
+  function setBugHuntEnabled(enabled) {
+    if (enabled) {
+      setTargetsEnabled(false)
+      setDestructionEnabled(false)
+    }
+    bugHuntEnabled = enabled
+  }
+
+  function hitBug(x0, y0, x1, y1, radius) {
+    return bugLayerLoader.item ? bugLayerLoader.item.hitProjectile(x0, y0, x1, y1, radius) : false
   }
 
   function arm(id) {
@@ -305,7 +344,7 @@ Item {
     setDestructionEnabled(false)
     console.warn("Desktop destruction disabled: " + message)
     equip(id, false)
-    if (failedCapturePath.indexOf("/tmp/blow-off-some-steam-") === 0)
+    if (failedCapturePath.indexOf(capturePrefix) === 0)
       captureCleanupProcess.exec(["rm", "-f", failedCapturePath])
   }
   function tryFinishCapture() {
@@ -657,7 +696,7 @@ Item {
     activeWorkspaceReady = false
     desktopSnapshot = ""
     capturePath = ""
-    if (oldCapturePath.indexOf("/tmp/blow-off-some-steam-") === 0)
+    if (oldCapturePath.indexOf(capturePrefix) === 0)
       captureCleanupProcess.exec(["rm", "-f", oldCapturePath])
   }
   function playWeaponSound() {
@@ -671,7 +710,7 @@ Item {
     else pistolSound.play()
   }
   function shoot(withSound) {
-    if (!armed) return false
+    if (!armed || bossCinematic) return false
     if (weapon === "bazooka" || weapon === "thick-bazooka") {
       // Share the cooldown across launchers so swapping cannot bypass it.
       // Reject extra clicks before sound, recoil, flash, or particle creation.
@@ -751,6 +790,10 @@ Item {
     screen: root.targetScreen
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
+    contentItem.transform: Translate {
+      x: root.bugHuntEnabled && bugLayerLoader.item ? bugLayerLoader.item.shakeX : 0
+      y: root.bugHuntEnabled && bugLayerLoader.item ? bugLayerLoader.item.shakeY : 0
+    }
     WlrLayershell.namespace: "blow-off-some-steam"
     WlrLayershell.layer: WlrLayer.Overlay
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
@@ -763,7 +806,7 @@ Item {
     Image {
       anchors.fill: parent
       source: root.wallpaperSource
-      visible: root.destructionEnabled && root.armed && root.desktopSnapshot !== ""
+      visible: root.destructionEnabled && root.armed && String(root.desktopSnapshot) !== ""
       asynchronous: true
       fillMode: Image.PreserveAspectCrop
       cache: true
@@ -793,7 +836,7 @@ Item {
     Rectangle {
       anchors.fill: parent
       color: "#15171b"
-      visible: root.destructionEnabled && root.armed && root.desktopSnapshot === ""
+      visible: root.destructionEnabled && root.armed && String(root.desktopSnapshot) === ""
     }
 
     Loader {
@@ -802,7 +845,7 @@ Item {
       // Instantiate only once the layer is visible. Loading this threaded
       // Canvas while hidden can lose its first paint, leaving the intact
       // snapshot bridge visible underneath every transparent damage mark.
-      active: root.destructionEnabled && root.armed && root.desktopSnapshot !== ""
+      active: root.destructionEnabled && root.armed && String(root.desktopSnapshot) !== ""
       visible: active
       sourceComponent: TerrainLayer { arena: root }
     }
@@ -967,6 +1010,14 @@ Item {
       }
     }
 
+    Loader {
+      id: bugLayerLoader
+      anchors.fill: parent
+      z: 19
+      active: root.armed && root.bugHuntEnabled
+      sourceComponent: BugHuntLayer { arena: root }
+    }
+
     EffectsLayer {
       id: canvas
       anchors.fill: parent
@@ -1118,6 +1169,7 @@ Item {
         }
       }
       onPressed: function(event) {
+        if (root.bossCinematic) return
         root.pointerX = event.x
         root.pointerY = event.y
         if (event.button === Qt.MiddleButton) {
@@ -1203,6 +1255,7 @@ Item {
     interval: 190
     repeat: false
     onTriggered: {
+      if (root.bossCinematic) return
       root.automaticHoldEngaged = true
       root.shoot(false)
       if (root.weapon === "mp5a3") mp5AutomaticSound.play()
@@ -1381,6 +1434,7 @@ Item {
   }
 
   function simulateStep() {
+    if (bossCinematic) return
     previousRecoil = recoil
     previousFlash = flash
     var hadParticleWork = root.particles.length > 0 || root.pendingEffects.length > 0
@@ -1391,6 +1445,7 @@ Item {
     var next = particleBuffer
     next.length = 0
     for (var i = 0; i < root.particles.length; i++) {
+      if (bossCinematic) break
       var p = root.particles[i]
       p.previousX = p.x
       p.previousY = p.y
@@ -1428,6 +1483,7 @@ Item {
         }
 
         var bulletRadius = p.size * 1.5
+        if (root.bugHuntEnabled && root.hitBug(previousX, previousY, p.x, p.y, bulletRadius)) continue
         if (root.projectileHitsTarget(p, bulletRadius)) {
           root.hitTarget()
           continue
@@ -1532,7 +1588,7 @@ Item {
             continue
           }
         }
-        if (root.projectileHitsTarget(p, rocketRadius)) {
+        if ((root.bugHuntEnabled && root.hitBug(rocketPreviousX, rocketPreviousY, p.x, p.y, rocketRadius)) || root.projectileHitsTarget(p, rocketRadius)) {
           root.hitTarget()
           root.playRocketExplosion(p)
           root.damageDesktop(p.x, p.y, Math.round(40 * (p.boomScale || 1)), "blast", 115 * (p.boomScale || 1))
@@ -1580,7 +1636,7 @@ Item {
 
   FrameAnimation {
     id: simulation
-    running: root.armed && root.simulationAwake
+    running: root.armed && root.simulationAwake && !root.bossCinematic
     onTriggered: {
       // Bound catch-up after a suspended compositor; ordinary missed frames
       // still advance every physics step instead of slowing the simulation.
@@ -1611,16 +1667,23 @@ Item {
     interval: 220
     repeat: false
     onTriggered: {
+      // XDG_RUNTIME_DIR is the session's user-only (0700) directory. Keep
+      // captures private from creation, including before chmod completes.
+      var runtimeDir = Quickshell.env("XDG_RUNTIME_DIR")
+      if (!runtimeDir || runtimeDir[0] !== "/" || runtimeDir === "/") {
+        root.abortCapture("Private runtime directory is unavailable")
+        return
+      }
       var screenName = root.targetScreen ? String(root.targetScreen.name || "") : ""
       var safeName = screenName.replace(/[^A-Za-z0-9_.-]/g, "_") || "default"
       root.captureSerial += 1
       // A unique URL is essential: Canvas.loadImage caches by URL even when
       // the file at that path has been replaced on another workspace.
-      root.capturePath = "/tmp/blow-off-some-steam-" + safeName + "-" + root.captureSerial + "-" + Date.now() + ".ppm"
+      root.capturePath = root.capturePrefix + safeName + "-" + root.captureSerial + "-" + Date.now() + ".ppm"
       var command = ["grim"]
       if (screenName !== "") command.push("-o", screenName)
       // PPM avoids the expensive full-resolution PNG compression/decode path.
-      // The file lives only in /tmp and is never user-facing.
+      // The file lives only in the private runtime directory.
       command.push("-s", "1", "-t", "ppm")
       command.push(root.capturePath)
       captureProcess.exec(command)
