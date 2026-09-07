@@ -21,14 +21,18 @@ A playful Omarchy Shell bar widget. Open the animated weapon wardrobe and choose
 - Glock, Colt, AK-47, and MP5 rounds remain visible and ricochet off screen edges with damped momentum.
 - Ejected casings tumble and bounce independently when they reach a screen edge.
 - **Target practice** is off by default. Check it in the drawer to spawn a roaming bullseye; hit it to dissolve it into smoke and relocate it.
-- **Target practice** and **Desktop destruction** are mutually exclusive; enabling either one automatically disables the other.
+- **Fly Hunt** spawns four animated flies. Shoot them to leave a theme-colored splat; each fly returns after a short delay. Rocket blasts can hit several flies at once.
+- Local video experiment: 20 fly kills summon **The Motherfly**, a giant boss with 120 health. Combat pauses for an ominous buzz and dramatic reveal. She enrages at 35% health with a brief pause, then darts across the screen with short shake pulses. She falters at 10%, and spirals into a giant splat on defeat. Boss splats sound every 30 health lost and on landing. Bullets deal one damage and blasts deal eight; direct rockets also register their projectile hit. Holstering or leaving Fly Hunt resets the encounter and stops its sounds.
+- **Target practice**, **Fly Hunt**, and **Desktop destruction** are mutually exclusive; enabling one automatically disables the others.
 - Rockets ricochet from screen edges and burst when the launcher recording reaches its explosion; direct hits detonate immediately, and the full blast radius can hit targets.
 - Bullet impacts leave persistent holes and cracks; rocket explosions scorch much larger areas of the captured desktop.
 - Press **Escape**, or right-click the bar icon after returning to it, to holster.
 
 While armed, the fullscreen overlay intentionally captures pointer input so shots do not click the windows underneath it.
 
-Desktop destruction stores its frozen frame as an owner-only temporary file under `/tmp`. The file is removed when the weapon is holstered; an abnormal shell termination may leave it for the system's normal temporary-file cleanup.
+**Giant Wings**, the Motherfly soundtrack, fades in at her reveal, loops during the fight, and fades out during her death tumble. Holstering or leaving Fly Hunt stops the music immediately.
+
+Desktop destruction stores its frozen frame as an owner-only temporary file under `$XDG_RUNTIME_DIR` (the private session directory). The file is removed when the weapon is holstered; an abnormal shell termination may leave it until session cleanup.
 
 ## Install
 
@@ -63,5 +67,7 @@ The processed sounds under `sounds/` are derived from the following Pixabay down
 - “MP5” by jigokukarano_sisya
 - “Load Gun sound effect 5” by beetpro
 - “Window Breaking” by m1a2t3z4 (via freesound_community)
+- “Slime Impact” by Universfield
+- “Fly buzzing from left to right” by Kuzu420
 
 These audio files are not covered by this plugin's MIT license. See `sounds/README.md` for source links and details.

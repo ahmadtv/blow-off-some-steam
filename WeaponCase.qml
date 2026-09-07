@@ -346,6 +346,57 @@ Panel {
               }
             }
             Rectangle {
+              id: bugToggle
+              width: parent.width
+              height: Style.space(26)
+              radius: Style.cornerRadius
+              color: bugHover.containsMouse
+                ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.09)
+                : "transparent"
+              border.width: 1
+              border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.16)
+
+              Row {
+                anchors.left: parent.left
+                anchors.leftMargin: Style.space(8)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Style.space(6)
+                Rectangle {
+                  width: Style.space(14)
+                  height: width
+                  radius: Style.space(2)
+                  color: root.arena && root.arena.bugHuntEnabled ? root.accent : "transparent"
+                  border.width: 1
+                  border.color: root.arena && root.arena.bugHuntEnabled
+                    ? root.accent
+                    : Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.55)
+                  Text {
+                    anchors.centerIn: parent
+                    text: "✓"
+                    visible: root.arena && root.arena.bugHuntEnabled
+                    color: "white"
+                    font.pixelSize: Style.space(10)
+                    font.bold: true
+                  }
+                }
+                Text {
+                  anchors.verticalCenter: parent.verticalCenter
+                  text: "Fly Hunt"
+                  color: root.foreground
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                }
+              }
+
+              MouseArea {
+                id: bugHover
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: if (root.arena) root.arena.setBugHuntEnabled(!root.arena.bugHuntEnabled)
+              }
+            }
+            Rectangle {
               id: destructionToggle
               width: parent.width
               height: Style.space(34)
