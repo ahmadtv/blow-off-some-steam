@@ -21,7 +21,12 @@ Panel {
   readonly property color accent: Color.accent
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
+  // See Arena.qml: sounds stay unloaded until the case is opened, so no
+  // playback stream exists on the audio server while the game is idle.
+  property bool audioReady: false
+
   function open() {
+    audioReady = true
     doorOpenTimer.stop()
     doorOpenSound.stop()
     doorAnimationEnabled = false
@@ -210,13 +215,13 @@ Panel {
 
   SoundEffect {
     id: weaponHoverSound
-    source: Qt.resolvedUrl("sounds/weapon-hover.wav")
+    source: root.audioReady ? Qt.resolvedUrl("sounds/weapon-hover.wav") : ""
     volume: 0.22
   }
 
   SoundEffect {
     id: doorOpenSound
-    source: Qt.resolvedUrl("sounds/doors-open.wav")
+    source: root.audioReady ? Qt.resolvedUrl("sounds/doors-open.wav") : ""
     volume: 0.30
   }
 
